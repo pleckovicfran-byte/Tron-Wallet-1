@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRON Wallet</title>
+
+<script src="https://unpkg.com/tronweb@6.5.1/dist/TronWeb.js"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top, #291000, #080808 55%);
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.wallet {
+    width: 100%;
+    max-width: 470px;
+    background: rgba(20,20,20,.95);
+    border: 1px solid #333;
+    border-radius: 24px;
+    padding: 25px;
+    box-shadow: 0 20px 70px rgba(0,0,0,.6);
+}
+
+.logo {
+    text-align: center;
+    font-size: 42px;
+    font-weight: 900;
+    color: #ff0017;
+}
+
+.title {
+    text-align: center;
+    font-size: 25px;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.network {
+    text-align: center;
+    margin: 8px 0 22px;
+    color: #ff5757;
+    font-size: 13px;
+}
+
+.balance {
+    background: linear-gradient(135deg,#181818,#242424);
+    border-radius: 18px;
+    padding: 25px;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.balance small {
+    color: #aaa;
+}
+
+.balance h1 {
+    margin: 10px 0 0;
+    font-size: 38px;
+}
+
+.card {
+    background: #171717;
+    border-radius: 16px;
+    padding: 16px;
+    margin-top: 12px;
+}
+
+.label {
+    color: #999;
+    font-size: 12px;
+    margin-bottom: 7px;
+}
+
+.address {
+    word-break: break-all;
+    font-size: 13px;
+}
+
+button {
+    width: 100%;
+    border: 0;
+    border-radius: 13px;
+    padding: 15px;
+    margin-top: 12px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #ff0017;
+    color: white;
+}
+
+button:hover {
+    opacity: .85;
+}
+
+.secondary {
+    background: #292929;
+}
+
+input {
+    width: 100%;
+    padding: 14px;
+    border-radius: 11px;
+    border: 1px solid #444;
+    background: #101010;
+    color: white;
+    margin-top: 8px;
+    outline: none;
+}
+
+textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border-radius: 11px;
+    border: 1px solid #444;
+    background: #101010;
+    color: white;
+    resize: none;
+}
+
+#privateBox {
+    display: none;
+}
+
+.status {
+    text-align: center;
+    margin-top: 15px;
+    color: #aaa;
+    font-size: 13px;
+}
+
+.hidden {
+    display: none;
+}
+
+.warning {
+    color: #ff6969;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wallet">
+
+    <div class="logo">TRX</div>
+    <div class="title">TRON Wallet</div>
+    <div class="network">SHASTA TESTNET</div>
+
+    <div id="createScreen">
+
+        <div class="card">
+            <div class="label">Wallet</div>
+            <p>Još nemaš lokalno spremljen wallet.</p>
+        </div>
+
+        <button onclick="createWallet()">
+            CREATE NEW WALLET
+        </button>
+
+        <button class="secondary" onclick="importWallet()">
+            IMPORT PRIVATE KEY
+        </button>
+
+    </div>
+
+    <div id="walletScreen" class="hidden">
+
+        <div class="balance">
+            <small>TRX BALANCE</small>
+            <h1 id="balance">0.000000 TRX</h1>
+        </div>
+
+        <div class="card">
+            <div class="label">YOUR TRON ADDRESS</div>
+            <div id="address" class="address"></div>
+
+            <button class="secondary" onclick="copyAddress()">
+                COPY ADDRESS
+            </button>
+        </div>
+
+        <div class="card">
+
+            <div class="label">SEND TRX</div>
+
+            <input
+                id="recipient"
+                placeholder="Recipient TRON address"
+            >
+
+            <input
+                id="amount"
+                type="number"
+                step="0.000001"
+                min="0"
+                placeholder="Amount TRX"
+            >
+
+            <button onclick="sendTRX()">
+                SEND TRX
+            </button>
+
+        </div>
+
+        <div class="card">
+
+            <button
+                class="secondary"
+                onclick="showPrivateKey()"
+            >
+                SHOW PRIVATE KEY
+            </button>
+
+            <div id="privateBox">
+
+                <div class="warning">
+                    NEVER share this private key with anyone.
+                    Anyone who has it can control this wallet.
+                </div>
+
+                <textarea
+                    id="privateKey"
+                    readonly
+                ></textarea>
+
+            </div>
+
+        </div>
+
+        <button
+            class="secondary"
+            onclick="refreshBalance()"
+        >
+            REFRESH BALANCE
+        </button>
+
+        <button
+            class="secondary"
+            onclick="lockWallet()"
+        >
+            LOCK WALLET
+        </button>
+
+    </div>
+
+    <div id="status" class="status">
+        Ready
+    </div>
+
+</div>
+
+
+<script>
+
+const SHASTA_NODE = "https://api.shasta.trongrid.io";
+
+let tronWeb;
+let wallet = null;
+
+
+/* =========================
+   START
+========================= */
+
+async function init() {
+
+    tronWeb = new TronWeb({
+        fullHost: SHASTA_NODE
+    });
+
+    const saved = localStorage.getItem("tron_wallet");
+
+    if (saved) {
+
+        try {
+
+            wallet = JSON.parse(saved);
+
+            document.getElementById("createScreen")
+                .classList.add("hidden");
+
+            document.getElementById("walletScreen")
+                .classList.remove("hidden");
+
+            document.getElementById("address")
+                .textContent = wallet.address;
+
+            await refreshBalance();
+
+        } catch(e) {
+
+            localStorage.removeItem("tron_wallet");
+
+        }
+    }
+}
+
+
+/* =========================
+   CREATE WALLET
+========================= */
+
+async function createWallet() {
+
+    try {
+
+        setStatus("Creating wallet...");
+
+        const account =
+            await TronWeb.utils.accounts.generateAccount();
+
+        wallet = {
+            address: account.address.base58,
+            privateKey: account.privateKey
+        };
+
+        localStorage.setItem(
+            "tron_wallet",
+            JSON.stringify(wallet)
+        );
+
+        document.getElementById("createScreen")
+            .classList.add("hidden");
+
+        document.getElementById("walletScreen")
+            .classList.remove("hidden");
+
+        document.getElementById("address")
+            .textContent = wallet.address;
+
+        document.getElementById("privateKey")
+            .value = wallet.privateKey;
+
+        await refreshBalance();
+
+        setStatus("Wallet created!");
+
+        alert(
+            "WALLET CREATED!\n\n" +
+            "SAVE YOUR PRIVATE KEY BEFORE DOING ANYTHING ELSE."
+        );
+
+    } catch(error) {
+
+        console.error(error);
+
+        setStatus(
+            "Error creating wallet: " + error.message
+        );
+    }
+}
+
+
+/* =========================
+   IMPORT
+========================= */
+
+async function importWallet() {
+
+    const key = prompt(
+        "Enter your TRON private key:"
+    );
+
+    if (!key) return;
+
+    try {
+
+        if (!/^[0-9a-fA-F]{64}$/.test(key)) {
+            throw new Error("Invalid private key.");
+        }
+
+        const address =
+            TronWeb.address.fromPrivateKey(key);
+
+        wallet = {
+            address,
+            privateKey: key
+        };
+
+        localStorage.setItem(
+            "tron_wallet",
+            JSON.stringify(wallet)
+        );
+
+        document.getElementById("createScreen")
+            .classList.add("hidden");
+
+        document.getElementById("walletScreen")
+            .classList.remove("hidden");
+
+        document.getElementById("address")
+            .textContent = wallet.address;
+
+        await refreshBalance();
+
+        setStatus("Wallet imported.");
+
+    } catch(error) {
+
+        alert("Invalid private key.");
+
+    }
+}
+
+
+/* =========================
+   BALANCE
+========================= */
+
+async function refreshBalance() {
+
+    if (!wallet) return;
+
+    try {
+
+        setStatus("Loading balance...");
+
+        const sun =
+            await tronWeb.trx.getBalance(wallet.address);
+
+        const trx = sun / 1_000_000;
+
+        document.getElementById("balance")
+            .textContent =
+            trx.toFixed(6) + " TRX";
+
+        setStatus("Balance updated.");
+
+    } catch(error) {
+
+        console.error(error);
+
+        setStatus(
+            "Could not load balance."
+        );
+    }
+}
+
+
+/* =========================
+   SEND
+========================= */
+
+async function sendTRX() {
+
+    if (!wallet) return;
+
+    const recipient =
+        document.getElementById("recipient").value.trim();
+
+    const amount =
+        Number(
+            document.getElementById("amount").value
+        );
+
+    if (!tronWeb.isAddress(recipient)) {
+
+        alert("Invalid TRON address.");
+        return;
+    }
+
+    if (!amount || amount <= 0) {
+
+        alert("Enter a valid amount.");
+        return;
+    }
+
+    try {
+
+        setStatus("Creating transaction...");
+
+        const amountSun =
+            Math.round(amount * 1_000_000);
+
+        const transaction =
+            await tronWeb.transactionBuilder.sendTrx(
+                recipient,
+                amountSun,
+                wallet.address
+            );
+
+        setStatus("Signing transaction...");
+
+        const signed =
+            await tronWeb.trx.sign(
+                transaction,
+                wallet.privateKey
+            );
+
+        setStatus("Broadcasting...");
+
+        const result =
+            await tronWeb.trx.sendRawTransaction(
+                signed
+            );
+
+        console.log(result);
+
+        if (!result.result) {
+
+            throw new Error(
+                result.message || "Transaction failed."
+            );
+        }
+
+        alert(
+            "Transaction sent!\n\nTXID:\n" +
+            result.txid
+        );
+
+        document.getElementById("recipient")
+            .value = "";
+
+        document.getElementById("amount")
+            .value = "";
+
+        await refreshBalance();
+
+    } catch(error) {
+
+        console.error(error);
+
+        alert(
+            "Transaction error:\n" +
+            error.message
+        );
+
+        setStatus("Transaction failed.");
+
+    }
+}
+
+
+/* =========================
+   COPY
+========================= */
+
+function copyAddress() {
+
+    navigator.clipboard.writeText(
+        wallet.address
+    );
+
+    setStatus("Address copied.");
+}
+
+
+/* =========================
+   PRIVATE KEY
+========================= */
+
+function showPrivateKey() {
+
+    const box =
+        document.getElementById("privateBox");
+
+    if (box.style.display === "block") {
+
+        box.style.display = "none";
+
+    } else {
+
+        box.style.display = "block";
+
+        document.getElementById("privateKey")
+            .value = wallet.privateKey;
+    }
+}
+
+
+/* =========================
+   LOCK
+========================= */
+
+function lockWallet() {
+
+    document.getElementById("walletScreen")
+        .classList.add("hidden");
+
+    document.getElementById("createScreen")
+        .classList.remove("hidden");
+
+    setStatus(
+        "Wallet locked. Local wallet still exists."
+    );
+}
+
+
+/* =========================
+   STATUS
+========================= */
+
+function setStatus(text) {
+
+    document.getElementById("status")
+        .textContent = text;
+}
+
+
+init();
+
+</script>
+
+</body>
+</html>
